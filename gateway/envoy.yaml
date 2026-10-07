@@ -1,0 +1,196 @@
+---
+static_resources:
+  listeners:
+  - name: http
+    address:
+      socket_address:
+        address: 0.0.0.0
+        port_value: 8080
+    filter_chains:
+    - filters:
+      - name: envoy.filters.network.http_connection_manager
+        typed_config:
+          "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+          stat_prefix: ingress_http
+          route_config:
+            name: default
+            virtual_hosts:
+            - name: services
+              domains:
+              - "*"
+              routes:
+              - match:
+                  prefix: "/"
+                route:
+                  weighted_clusters:
+                    runtime_key_prefix: migration.authority
+                    clusters:
+                    - name: legacy
+                      weight: 100
+                      request_headers_to_add:
+                      - header:
+                          key: x-mobilis-mirror-cluster
+                          value: candidate
+                        append_action: OVERWRITE_IF_EXISTS_OR_ADD
+                    - name: candidate
+                      weight: 0
+                  request_mirror_policies:
+                  - cluster_header: x-mobilis-mirror-cluster
+                    request_headers_mutations:
+                    - append:
+                        header:
+                          key: x-mobilis-shadow
+                          value: 'true'
+                        append_action: OVERWRITE_IF_EXISTS_OR_ADD
+                    - remove: x-mobilis-mirror-cluster
+                    runtime_fraction:
+                      runtime_key: migration.mirror
+                      default_value:
+                        numerator: 100
+                        denominator: HUNDRED
+          http_filters:
+          - name: envoy.filters.http.header_mutation
+            typed_config:
+              "@type": type.googleapis.com/envoy.extensions.filters.http.header_mutation.v3.HeaderMutation
+              mutations:
+                request_mutations:
+                - remove: x-mobilis-shadow
+                - remove: x-mobilis-mirror-cluster
+          - name: envoy.filters.http.router
+            typed_config:
+              "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
+          tracing:
+            provider:
+              name: envoy.tracers.opentelemetry
+              typed_config:
+                "@type": type.googleapis.com/envoy.config.trace.v3.OpenTelemetryConfig
+                grpc_service:
+                  envoy_grpc:
+                    cluster_name: mobilis_otel
+                service_name: gateway
+            random_sampling:
+              value: 100
+  - name: verification
+    address:
+      socket_address:
+        address: 0.0.0.0
+        port_value: 8081
+    filter_chains:
+    - filters:
+      - name: envoy.filters.network.http_connection_manager
+        typed_config:
+          "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+          stat_prefix: verification_http
+          route_config:
+            name: verification
+            virtual_hosts:
+            - name: services
+              domains:
+              - "*"
+              routes:
+              - match:
+                  prefix: "/"
+                route:
+                  weighted_clusters:
+                    runtime_key_prefix: migration.authority
+                    clusters:
+                    - name: legacy
+                      weight: 100
+                      request_headers_to_add:
+                      - header:
+                          key: x-mobilis-mirror-cluster
+                          value: candidate
+                        append_action: OVERWRITE_IF_EXISTS_OR_ADD
+                    - name: candidate
+                      weight: 0
+                    header_name: x-mobilis-routing-bucket
+                  request_mirror_policies:
+                  - cluster_header: x-mobilis-mirror-cluster
+                    request_headers_mutations:
+                    - append:
+                        header:
+                          key: x-mobilis-shadow
+                          value: 'true'
+                        append_action: OVERWRITE_IF_EXISTS_OR_ADD
+                    - remove: x-mobilis-mirror-cluster
+                    runtime_fraction:
+                      runtime_key: migration.mirror
+                      default_value:
+                        numerator: 100
+                        denominator: HUNDRED
+          http_filters:
+          - name: envoy.filters.http.header_mutation
+            typed_config:
+              "@type": type.googleapis.com/envoy.extensions.filters.http.header_mutation.v3.HeaderMutation
+              mutations:
+                request_mutations:
+                - remove: x-mobilis-shadow
+                - remove: x-mobilis-mirror-cluster
+          - name: envoy.filters.http.router
+            typed_config:
+              "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
+          tracing:
+            provider:
+              name: envoy.tracers.opentelemetry
+              typed_config:
+                "@type": type.googleapis.com/envoy.config.trace.v3.OpenTelemetryConfig
+                grpc_service:
+                  envoy_grpc:
+                    cluster_name: mobilis_otel
+                service_name: gateway
+            random_sampling:
+              value: 100
+  clusters:
+  - name: legacy
+    type: STRICT_DNS
+    connect_timeout: 5s
+    lb_policy: ROUND_ROBIN
+    load_assignment:
+      cluster_name: legacy
+      endpoints:
+      - lb_endpoints:
+        - endpoint:
+            address:
+              socket_address:
+                address: legacy
+                port_value: 8000
+  - name: candidate
+    type: STRICT_DNS
+    connect_timeout: 5s
+    lb_policy: ROUND_ROBIN
+    load_assignment:
+      cluster_name: candidate
+      endpoints:
+      - lb_endpoints:
+        - endpoint:
+            address:
+              socket_address:
+                address: candidate
+                port_value: 8080
+  - name: mobilis_otel
+    type: STRICT_DNS
+    connect_timeout: 5s
+    lb_policy: ROUND_ROBIN
+    load_assignment:
+      cluster_name: mobilis_otel
+      endpoints:
+      - lb_endpoints:
+        - endpoint:
+            address:
+              socket_address:
+                address: telemetry
+                port_value: 4317
+    typed_extension_protocol_options:
+      envoy.extensions.upstreams.http.v3.HttpProtocolOptions:
+        "@type": type.googleapis.com/envoy.extensions.upstreams.http.v3.HttpProtocolOptions
+        explicit_http_config:
+          http2_protocol_options: {}
+admin:
+  address:
+    socket_address:
+      address: 0.0.0.0
+      port_value: 9901
+layered_runtime:
+  layers:
+  - name: admin
+    admin_layer: {}

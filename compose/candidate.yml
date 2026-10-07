@@ -1,0 +1,21 @@
+---
+services:
+  candidate:
+    image: http-migration/candidate
+    environment:
+    - DATABASE_URL=${CANDIDATE_DATABASE_URL}
+    - OTEL_EXPORTER_OTLP_ENDPOINT=http://telemetry:4318
+    - OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
+    - OTEL_PROPAGATORS=tracecontext,baggage
+    - OTEL_SERVICE_NAME=candidate
+    - PORT=8080
+    - TELEMETRY_URL=${CANDIDATE__TELEMETRY_URL}
+    build:
+      context: "./candidate"
+    depends_on:
+      store:
+        condition: service_healthy
+        restart: true
+      telemetry:
+        condition: service_started
+        restart: true

@@ -1,0 +1,6 @@
+---
+services:
+  trace-viewer:
+    image: jaegertracing/jaeger:2.19.0
+    ports:
+    - "${TRACE_VIEWER_WEB_PORT}:16686"

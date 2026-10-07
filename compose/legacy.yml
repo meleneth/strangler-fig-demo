@@ -1,0 +1,21 @@
+---
+services:
+  legacy:
+    image: http-migration/legacy
+    environment:
+    - DATABASE_URL=${LEGACY_DATABASE_URL}
+    - OTEL_EXPORTER_OTLP_ENDPOINT=http://telemetry:4318
+    - OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
+    - OTEL_PROPAGATORS=tracecontext,baggage
+    - OTEL_SERVICE_NAME=legacy
+    - PORT=8000
+    - TELEMETRY_URL=${LEGACY__TELEMETRY_URL}
+    build:
+      context: "./legacy"
+    depends_on:
+      store:
+        condition: service_healthy
+        restart: true
+      telemetry:
+        condition: service_started
+        restart: true

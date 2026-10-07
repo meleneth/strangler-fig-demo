@@ -1,0 +1,20 @@
+---
+services:
+  store:
+    image: postgres:18.3-trixie
+    ports:
+    - "${STORE_POSTGRES_PORT}:5432"
+    environment:
+    - POSTGRES_DB=${STORE_POSTGRES_DB}
+    - POSTGRES_PASSWORD=${STORE_POSTGRES_PASSWORD}
+    - POSTGRES_USER=${STORE_POSTGRES_USER}
+    volumes:
+    - "${STORE_POSTGRES_DATA}:/var/lib/postgresql"
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - pg_isready -U ${STORE_POSTGRES_USER} -d ${STORE_POSTGRES_DB}
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s

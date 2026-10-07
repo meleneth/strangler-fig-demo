@@ -1,0 +1,16 @@
+---
+services:
+  telemetry:
+    image: otel/opentelemetry-collector-contrib:0.155.0
+    ports:
+    - "${TELEMETRY_COLLECTOR_PORT}:4318"
+    environment:
+    - TRACE_VIEWER_URL=${TELEMETRY__TRACE_VIEWER_URL}
+    volumes:
+    - "./telemetry/otel-collector-config.yaml:/etc/otel-collector-config.yaml"
+    depends_on:
+      trace-viewer:
+        condition: service_started
+        restart: true
+    command:
+    - "--config=/etc/otel-collector-config.yaml"

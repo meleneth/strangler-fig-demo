@@ -1,0 +1,21 @@
+---
+name: http-migration-test
+include:
+- path: "./compose/store.yml"
+  project_directory: "./"
+  env_file: "./test.env"
+- path: "./compose/telemetry.yml"
+  project_directory: "./"
+  env_file: "./test.env"
+- path: "./compose/trace-viewer.yml"
+  project_directory: "./"
+  env_file: "./test.env"
+- path: "./compose/legacy.yml"
+  project_directory: "./"
+  env_file: "./test.env"
+- path: "./compose/candidate.yml"
+  project_directory: "./"
+  env_file: "./test.env"
+- path: "./compose/gateway.yml"
+  project_directory: "./"
+  env_file: "./test.env"
