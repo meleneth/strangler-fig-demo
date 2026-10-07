@@ -1,0 +1,68 @@
+---
+services:
+  store:
+    environment:
+    - POSTGRES_DB=${STORE_POSTGRES_DB}
+    - POSTGRES_PASSWORD=${STORE_POSTGRES_PASSWORD}
+    - POSTGRES_USER=${STORE_POSTGRES_USER}
+    ports:
+    - "${STORE_POSTGRES_PORT}:5432"
+  telemetry:
+    environment:
+    - TRACE_VIEWER_URL=${TELEMETRY__TRACE_VIEWER_URL}
+    ports:
+    - "${TELEMETRY_COLLECTOR_PORT}:4318"
+    depends_on:
+      trace-viewer:
+        condition: service_started
+        restart: true
+  trace-viewer:
+    ports:
+    - "${TRACE_VIEWER_WEB_PORT}:16686"
+  legacy:
+    environment:
+    - DATABASE_URL=${LEGACY_DATABASE_URL}
+    - OTEL_EXPORTER_OTLP_ENDPOINT=http://telemetry:4318
+    - OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
+    - OTEL_PROPAGATORS=tracecontext,baggage
+    - OTEL_SERVICE_NAME=legacy
+    - PORT=8000
+    - TELEMETRY_URL=${LEGACY__TELEMETRY_URL}
+    depends_on:
+      store:
+        condition: service_healthy
+        restart: true
+      telemetry:
+        condition: service_started
+        restart: true
+  candidate:
+    environment:
+    - DATABASE_URL=${CANDIDATE_DATABASE_URL}
+    - OTEL_EXPORTER_OTLP_ENDPOINT=http://telemetry:4318
+    - OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
+    - OTEL_PROPAGATORS=tracecontext,baggage
+    - OTEL_SERVICE_NAME=candidate
+    - PORT=8080
+    - TELEMETRY_URL=${CANDIDATE__TELEMETRY_URL}
+    depends_on:
+      store:
+        condition: service_healthy
+        restart: true
+      telemetry:
+        condition: service_started
+        restart: true
+  gateway:
+    environment:
+    - CANDIDATE_URL=${GATEWAY__CANDIDATE_URL}
+    - LEGACY_URL=${GATEWAY__LEGACY_URL}
+    - TELEMETRY_URL=${GATEWAY__TELEMETRY_URL}
+    ports:
+    - "${GATEWAY_WEB_PORT}:8080"
+    depends_on:
+      telemetry:
+        condition: service_started
+        restart: true
+      legacy:
+        condition: service_started
+      candidate:
+        condition: service_started
