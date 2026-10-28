@@ -124,6 +124,11 @@ Write verification proves more than matching status codes. It sends a new item t
 4. Retrieves that same trace and extracts the authoritative committed effect.
 5. At full mirroring, extracts the shadow candidate's independently computed effect and checks that its request emitted zero item database spans.
 6. Compares the database audit effect, authoritative telemetry effect, and shadow intent as parsed semantic objects; checks the evidence spans belong to the corresponding HTTP request.
+7. Parses PostgreSQL statements and bound parameters from both implementations, including the candidate's prepared shadow insert. Compares their SQL meaning against the item contract and checks executed statements against the independent database instrumentation. Different projections, predicates, ordering, limits, insert targets or bindings fail even if responses and reported effects still match.
+
+Read verification compares both actual SQL statements at full mirroring. The Python adapter captures the driver's SQL and bindings through SQLAlchemy's execution event; Go records the exact statement and arguments passed to pgx. Shadow inserts use the same `insertPlan` builder as real candidate commits, reporting SQL and bindings without executing them. Evidence must belong to the correlated request, and missing or duplicate evidence fails verification.
+
+The verifier uses [SQLGlot's PostgreSQL AST](https://sqlglot.com/sqlglot/dialects/postgres.html) with the demo's `items(id INTEGER, name VARCHAR)` schema. It normalizes table qualifications/aliases, formatting, default ascending order, driver placeholders and schema-preserving parameter casts; it maps insert bindings by target column. This is a bounded comparison for this contract, not a general SQL equivalence solver. Unsupported statements, clauses, casts, multiple statements or missing/unused bindings fail closed. Extra queries to other tables are checked too; only transaction controls and the deliberate writer identity setting are excluded. Conflict handling and database constraints remain outside shadow equivalence.
 
 The Go handler parses and validates input and constructs its insert effect once, before a small commitment function checks request context. The shadow path makes no database call; the authoritative path applies that computed effect. The authoritative handler emits its effect only after a successful transaction commit. The audit trigger independently records the resulting row values and transaction's application identity. At complete cutover the candidate really inserts, and verification succeeds while the legacy server is stopped.
 
@@ -180,7 +185,9 @@ cd legacy
 python3 -m venv .venv
 . .venv/bin/activate
 python -m pip install -e '.[test]'
+python -m pip install -r demo/requirements.txt
 pytest
+pytest demo/test_operations.py
 pytest --cov=service_legacy --cov-report=term-missing
 cd ../candidate
 go mod tidy

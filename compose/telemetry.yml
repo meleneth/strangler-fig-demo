@@ -14,3 +14,7 @@ services:
         restart: true
     command:
     - "--config=/etc/otel-collector-config.yaml"
+    labels:
+      app.kubernetes.io/managed-by: mobilis
+      mobilis.io/project: http-migration
+      mobilis.io/service: telemetry

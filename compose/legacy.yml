@@ -19,3 +19,7 @@ services:
       telemetry:
         condition: service_started
         restart: true
+    labels:
+      app.kubernetes.io/managed-by: mobilis
+      mobilis.io/project: http-migration
+      mobilis.io/service: legacy

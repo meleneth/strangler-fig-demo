@@ -8,3 +8,7 @@ COPY --from=build /service /usr/local/bin/candidate
 USER 65532:65532
 EXPOSE 8080
 CMD ["candidate"]
+
+LABEL org.opencontainers.image.vendor="Mobilis"
+LABEL mobilis.project="http-migration"
+LABEL mobilis.service="candidate"
